@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Download image</string>
+    <string name="load">Load 1st user from DB</string>
+    <string name="enterLink">Введите ссылку на картинку</string>
+    <string name="enterUrlString">Введите Url ссылку!!!</string>
+    <string name="find">Найти</string>
+    <string name="picture">Картинка</string>
+    <string name="sdCardNotAvailable">SD-карта не доступна: </string>
+    <string name="onlyHTTP_HTTPS_URI">Можно загружать только HTTP / HTTPS URI</string>
+    <string name="no_internet">Отсутствует интернет, загрузка поставлена в очередь</string>
+    <string name="failed">Загрузка не удалась: </string>
+
+    <string name="attention">Внимание!</string>
+    <string name="need_get_permissions">Необходимо получить разрешения!</string>
+    <string name="need_obtain_permissions">Для использования приложения необходимо получить разрешения</string>
+    <string name="ok">Ок</string>
+    <string name="cancel">Отмена</string>
+</resources>
