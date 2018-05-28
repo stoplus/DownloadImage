@@ -191,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
                 Snackbar.make(view, "RUNNING", Snackbar.LENGTH_LONG).show();
                 break;
             case DownloadManager.STATUS_SUCCESSFUL:
-                Snackbar.make(view, "SUCCESSFUL", Snackbar.LENGTH_INDEFINITE).show();
+                Snackbar.make(view, "SUCCESSFUL", Snackbar.LENGTH_LONG).show();
                 break;
         }//switch
     }//CheckDwnloadStatus
