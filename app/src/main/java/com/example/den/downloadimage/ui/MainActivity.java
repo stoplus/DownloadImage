@@ -6,10 +6,15 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.ContentObserver;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.design.widget.AppBarLayout;
@@ -21,6 +26,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 
 import com.example.den.downloadimage.MyApp;
 import com.example.den.downloadimage.R;
@@ -28,6 +34,12 @@ import com.example.den.downloadimage.adapter.AdapterImage;
 import com.example.den.downloadimage.database.ImageObjDao;
 import com.example.den.downloadimage.entity.ImageObj;
 import com.example.den.downloadimage.utils.InternetConnection;
+import com.mlsdev.rximagepicker.RxImageConverters;
+import com.mlsdev.rximagepicker.RxImagePicker;
+import com.mlsdev.rximagepicker.Sources;
+
+import java.io.File;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
@@ -35,8 +47,11 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import io.reactivex.Completable;
 import io.reactivex.CompletableObserver;
+import io.reactivex.ObservableSource;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 import permissions.dispatcher.NeedsPermission;
 import permissions.dispatcher.OnNeverAskAgain;
@@ -66,7 +81,28 @@ public class MainActivity extends AppCompatActivity {
     private DownloadManager mgr;
     private ImageObj imageObjUpdated;
     private long enqueue;
+    private int count;
     private View view;
+    private boolean flag;
+    private boolean flagDownload;
+    private ContentObserver contObserverInternal = new ContentObserver(new Handler()) {
+        @Override
+        public void onChange(boolean selfChange) {
+            super.onChange(selfChange);
+            String path = lastPathFromMediaStore(
+                    MainActivity.this, MediaStore.Images.Media.INTERNAL_CONTENT_URI);
+            afterDownload(Uri.fromFile(new File(path)));
+        }
+    };
+    private ContentObserver contObserverExternal = new ContentObserver(new Handler()) {
+        @Override
+        public void onChange(boolean selfChange) {
+            super.onChange(selfChange);
+            String path = lastPathFromMediaStore(
+                    MainActivity.this, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            afterDownload(Uri.fromFile(new File(path)));
+        }
+    };
 
 
     @Override
@@ -78,13 +114,28 @@ public class MainActivity extends AppCompatActivity {
         ButterKnife.bind(this);
         MyApp.app().appComponent().inject(this);
 
+        if (savedInstanceState != null) {
+            flag = true;
+            imageObjUpdated = savedInstanceState.getParcelable("imageObjUpdated");
+        }
         //is created after compilation
         MainActivityPermissionsDispatcher.startWithPermissionCheck(MainActivity.this);
     }//onCreate
 
 
+    private void afterDownload(Uri uri) {
+        if (flagDownload) {
+            linkDevice = String.valueOf(uri);
+            imageObjUpdated.setDownload(true);
+            imageObjUpdated.setLinkDevice(linkDevice);
+            updateImageObj(imageObjUpdated);//update
+        }
+    }
+
+
     BroadcastReceiver onComplete = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
+            flagDownload = true;
             String action = intent.getAction();
             if (DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(action)) {
                 DownloadManager.Query query = new DownloadManager.Query();
@@ -93,25 +144,27 @@ public class MainActivity extends AppCompatActivity {
                 if (mgr != null) {
                     Cursor c = mgr.query(query);
                     if (c.moveToFirst()) {
-                        CheckDwnloadStatus(c);
-                        int columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
-
-                        if (DownloadManager.STATUS_SUCCESSFUL == c.getInt(columnIndex)) {
-                            linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-                            imageObjUpdated.setDownload(true);
-                            imageObjUpdated.setLinkDevice(linkDevice);
-                            updateImageObj(imageObjUpdated);//update
-                            getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
-                        }//if
-                    }//if
+                        CheckDownloadStatus(c);
+                    }
                     c.close();
-                }//if
+                }
             }//if
         }//onReceive
     };
 
 
-    private void CheckDwnloadStatus(Cursor cursor) {
+    private String lastPathFromMediaStore(Context context, Uri uri) {
+        Cursor cursor = context.getContentResolver().query(uri, null, null, null, "date_added DESC");
+        String dateAdded = "";
+        if (cursor != null && cursor.moveToNext()) {
+            dateAdded = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.ImageColumns.DATA));
+        }
+        Objects.requireNonNull(cursor).close();
+        return dateAdded;
+    }
+
+
+    private void CheckDownloadStatus(Cursor cursor) {
         int columnIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
         int status = cursor.getInt(columnIndex);
         int columnReason = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
@@ -194,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
                 Snackbar.make(view, "SUCCESSFUL", Snackbar.LENGTH_LONG).show();
                 break;
         }//switch
-    }//CheckDwnloadStatus
+    }//CheckDownloadStatus
 
 
     private void insertImageObj(final ImageObj imageObj) {
@@ -209,9 +262,6 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onComplete() {//Вставляем новую
                         Log.d("MainActivityClass", "imageObjDao.insert");
-                        if (!InternetConnection.checkConnection(getApplicationContext())) {
-                            Snackbar.make(view, getResources().getString(R.string.no_internet), Snackbar.LENGTH_INDEFINITE).show();
-                        }
                         getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
                     }
 
@@ -236,6 +286,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onComplete() {
                         Log.d("MainActivityClass", "imageObjDao.update");
+//                        getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
                         getListDownloadedImageObj();//get the list of downloaded and display them
                     }
 
@@ -284,12 +335,24 @@ public class MainActivity extends AppCompatActivity {
                 .subscribe(listImageObj -> {
                     disposNotDownloaded.dispose();
                     if (listImageObj.length > 0) {
-                        imageObjUpdated = listImageObj[0];//create changeable object
+                        if (InternetConnection.checkConnection(getApplicationContext())) {
+
+                            imageObjUpdated = listImageObj[0];//create changeable object
+                        } else {
+                            Snackbar.make(view, getResources().getString(R.string.no_internet), Snackbar.LENGTH_INDEFINITE).show();
+                            imageObjUpdated = listImageObj[listImageObj.length - 1];//create changeable object
+                        }
                         savePicture(imageObjUpdated.getLink()); // Save file
                     }
                 });
     }//getListImageObj
 
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putParcelable("imageObjUpdated", imageObjUpdated);
+    }
 
     private void displayUser(ImageObj[] imageObj) {
         AdapterImage adapterImage = new AdapterImage(MainActivity.this, imageObj);
@@ -310,7 +373,7 @@ public class MainActivity extends AppCompatActivity {
                     .replace("—", "%97")
                     .replace("_", "%5F");
 
-            ImageObj imageObj = new ImageObj(linkText, linkDevice, false);
+            ImageObj imageObj = new ImageObj(linkText, "", false);
             insertImageObj(imageObj);
         } else
             Snackbar.make(view, getResources().getString(R.string.enterUrlString), Snackbar.LENGTH_LONG).show();
@@ -320,7 +383,8 @@ public class MainActivity extends AppCompatActivity {
     @NeedsPermission({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
     void start() {
         getListDownloadedImageObj();//get the list of downloaded and display them
-        getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
+        if (!flag)
+            getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
     }//start
 
 
@@ -341,9 +405,10 @@ public class MainActivity extends AppCompatActivity {
             DownloadManager.Request request = new DownloadManager.Request(downloadUri)
                     .setDestinationInExternalPublicDir(DIR_SD, name);
             enqueue = mgr.enqueue(request);
-
+            count++;
         } catch (IllegalArgumentException e) {
-            Snackbar.make(view, getResources().getString(R.string.onlyHTTP_HTTPS_URI), Snackbar.LENGTH_LONG).show();
+            Snackbar.make(view, getResources()
+                    .getString(R.string.onlyHTTP_HTTPS_URI), Snackbar.LENGTH_LONG).show();
         }//try-catch
     }//savePicture
 
@@ -352,13 +417,23 @@ public class MainActivity extends AppCompatActivity {
     public void onResume() {
         super.onResume();
         registerReceiver(onComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        getContentResolver().registerContentObserver(
+                android.provider.MediaStore.Images.Media.INTERNAL_CONTENT_URI,
+                true, contObserverInternal
+        );
+        getContentResolver().registerContentObserver(
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                true, contObserverExternal
+        );
     } // onResume
 
 
     @Override
     protected void onPause() {
         super.onPause();
-       unregisterReceiver(onComplete);
+        unregisterReceiver(onComplete);
+        this.getContentResolver().unregisterContentObserver(contObserverExternal);
+        this.getContentResolver().unregisterContentObserver(contObserverInternal);
     }//onPause
 
 

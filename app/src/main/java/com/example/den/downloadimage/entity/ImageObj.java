@@ -3,9 +3,11 @@ package com.example.den.downloadimage.entity;
 import android.arch.persistence.room.ColumnInfo;
 import android.arch.persistence.room.Entity;
 import android.arch.persistence.room.PrimaryKey;
+import android.os.Parcel;
+import android.os.Parcelable;
 
 @Entity(tableName = "imageObj")
-public class ImageObj {
+public class ImageObj implements Parcelable {
     @PrimaryKey(autoGenerate = true)
     private int id;
 
@@ -23,6 +25,25 @@ public class ImageObj {
         this.linkDevice = linkDevice;
         this.download = download;
     }
+
+    protected ImageObj(Parcel in) {
+        id = in.readInt();
+        link = in.readString();
+        linkDevice = in.readString();
+        download = in.readByte() != 0;
+    }
+
+    public static final Creator<ImageObj> CREATOR = new Creator<ImageObj>() {
+        @Override
+        public ImageObj createFromParcel(Parcel in) {
+            return new ImageObj(in);
+        }
+
+        @Override
+        public ImageObj[] newArray(int size) {
+            return new ImageObj[size];
+        }
+    };
 
     public int getId() {
         return id;
@@ -54,5 +75,18 @@ public class ImageObj {
 
     public void setDownload(boolean download) {
         this.download = download;
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeInt(id);
+        dest.writeString(link);
+        dest.writeString(linkDevice);
+        dest.writeByte((byte) (download ? 1 : 0));
     }
 }
