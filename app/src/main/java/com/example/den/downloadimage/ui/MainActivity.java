@@ -12,8 +12,8 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.Snackbar;
-import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
@@ -56,10 +56,12 @@ public class MainActivity extends AppCompatActivity {
     Button buttonFind;
     @BindView(R.id.idRecycler)
     RecyclerView recycler;
+    @BindView(R.id.appBar)
+    AppBarLayout appBarLayout;
     private final int REQUEST_PERMITIONS = 1100;
     private final static String DIR_SD = "/MyApp";
-    private Disposable dispos;
-    private Disposable dispos1;
+    private Disposable disposDownloaded;
+    private Disposable disposNotDownloaded;
     private String linkDevice = "";
     private DownloadManager mgr;
     private ImageObj imageObjUpdated;
@@ -76,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
         ButterKnife.bind(this);
         MyApp.app().appComponent().inject(this);
 
+        //is created after compilation
         MainActivityPermissionsDispatcher.startWithPermissionCheck(MainActivity.this);
     }//onCreate
 
@@ -97,8 +100,8 @@ public class MainActivity extends AppCompatActivity {
                             linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
                             imageObjUpdated.setDownload(true);
                             imageObjUpdated.setLinkDevice(linkDevice);
-                            updateImageObj(imageObjUpdated);//обновляем
-                            getListNotDownloadedImageObj();//получаем список НЕ загруженных и запускаем загрузку
+                            updateImageObj(imageObjUpdated);//update
+                            getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
                         }//if
                     }//if
                     c.close();
@@ -156,9 +159,10 @@ public class MainActivity extends AppCompatActivity {
                         break;
                 }//switch
 
-                deleteImageObj(imageObjUpdated);//удаляем при ошибке
+                deleteImageObj(imageObjUpdated);//delete by error
                 Snackbar.make(view, getResources().getString(R.string.failed)
                         + failedReason, Snackbar.LENGTH_INDEFINITE).show();
+                getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
 
                 break;
             case DownloadManager.STATUS_PAUSED:
@@ -208,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
                         if (!InternetConnection.checkConnection(getApplicationContext())) {
                             Snackbar.make(view, getResources().getString(R.string.no_internet), Snackbar.LENGTH_INDEFINITE).show();
                         }
-                        getListNotDownloadedImageObj();//получаем список НЕ загруженных и отправляем на загрузку
+                        getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
                     }
 
                     @Override
@@ -230,9 +234,9 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onComplete() {//обновляем существующюю запись
+                    public void onComplete() {
                         Log.d("MainActivityClass", "imageObjDao.update");
-                        getListDownloadedImageObj();//получаем список загруженных и обновляем
+                        getListDownloadedImageObj();//get the list of downloaded and display them
                     }
 
                     @Override
@@ -251,7 +255,7 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onComplete() {//обновляем существующюю запись
+                    public void onComplete() {
                         Log.d("MainActivityClass", "imageObjDao.delete");
                     }
 
@@ -261,27 +265,27 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
-    //список загруженных
+    //get the list of downloaded
     public void getListDownloadedImageObj() {
-        dispos = imageObjDao.allDownloaded()
+        disposDownloaded = imageObjDao.allDownloaded()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(listImageObj -> {
-                    dispos.dispose();
-                    displayUser(listImageObj);
+                    disposDownloaded.dispose();
+                    displayUser(listImageObj);//display them
                 });
     }//getListImageObj
 
-    //список НЕ загруженных
+    //get the list of NOT downloaded
     public void getListNotDownloadedImageObj() {
-        dispos1 = imageObjDao.allNotDownloaded()
+        disposNotDownloaded = imageObjDao.allNotDownloaded()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(listImageObj -> {
-                    dispos1.dispose();
+                    disposNotDownloaded.dispose();
                     if (listImageObj.length > 0) {
-                        imageObjUpdated = listImageObj[0];//создаем изменяемый объект
-                        savePicture(imageObjUpdated.getLink()); // загружаем файл
+                        imageObjUpdated = listImageObj[0];//create changeable object
+                        savePicture(imageObjUpdated.getLink()); // Save file
                     }
                 });
     }//getListImageObj
@@ -315,8 +319,8 @@ public class MainActivity extends AppCompatActivity {
 
     @NeedsPermission({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
     void start() {
-        getListDownloadedImageObj();//список загруженных
-        getListNotDownloadedImageObj();//список не загруженных
+        getListDownloadedImageObj();//get the list of downloaded and display them
+        getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
     }//start
 
 
@@ -325,14 +329,14 @@ public class MainActivity extends AppCompatActivity {
         String name = url.substring(index, url.length());
         Uri downloadUri = Uri.parse(url);
 
-        // проверяем доступность SD
+        //check the availability of SD
         if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
             Snackbar.make(view, getResources().getString(R.string.sdCardNotAvailable) +
                     Environment.getExternalStorageState(), Snackbar.LENGTH_LONG).show();
             return;
         }//if
 
-        try {//Запускаем зугузку файла по указанному пути
+        try {//Running the download of the file on the specified path
             mgr = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             DownloadManager.Request request = new DownloadManager.Request(downloadUri)
                     .setDestinationInExternalPublicDir(DIR_SD, name);
@@ -347,7 +351,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-        //подписываем для получения события
         registerReceiver(onComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
     } // onResume
 
@@ -355,15 +358,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        //отписываем для получения события
-        if (onComplete != null) LocalBroadcastManager.getInstance(this).unregisterReceiver(onComplete);
+       unregisterReceiver(onComplete);
     }//onPause
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        dispos.dispose();
-    }//onDestroy
 
 
     //refund after agreement / denial of the user
@@ -371,6 +367,7 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(
             int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        //is created after compilation
         MainActivityPermissionsDispatcher.onRequestPermissionsResult(this, requestCode, grantResults);
     }//onRequestPermissionsResult
 
