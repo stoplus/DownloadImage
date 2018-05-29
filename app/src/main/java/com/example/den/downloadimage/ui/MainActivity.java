@@ -72,8 +72,8 @@ public class MainActivity extends AppCompatActivity {
     private View view;
     private ImageObj[] tempImageNotDownloaded;
     private boolean flagInstanceState;
-    private List<Long>listEnqueue = new ArrayList<>();
-    private List<String>listUrl = new ArrayList<>();
+    private List<ImageObj> list = new ArrayList<>();
+    private List<Long> listEnqueue = new ArrayList<>();
 
 
     @Override
@@ -100,11 +100,11 @@ public class MainActivity extends AppCompatActivity {
             if (DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(action)) {
                 DownloadManager.Query query = new DownloadManager.Query();
 
-                enqueue= listEnqueue.get(0);
-                String link = listUrl.get(0);
+                enqueue = listEnqueue.get(0);
+                imageObjUpdated = list.get(0);
                 query.setFilterById(enqueue);
+                list.remove(0);
                 listEnqueue.remove(0);
-                listUrl.remove(0);
 
                 if (mgr != null) {
                     Cursor c = mgr.query(query);
@@ -115,7 +115,6 @@ public class MainActivity extends AppCompatActivity {
                         if (DownloadManager.STATUS_SUCCESSFUL == c.getInt(columnIndex)) {
                             linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
                             imageObjUpdated.setDownload(true);
-                            imageObjUpdated.setLink(link);
                             imageObjUpdated.setLinkDevice(linkDevice);
                             updateImageObj(imageObjUpdated);//update
                         }//if
@@ -301,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
                     if (listImageObj.length > 0) {
                         tempImageNotDownloaded = listImageObj;
                         imageObjUpdated = listImageObj[listImageObj.length - 1];//create changeable object
-                        savePicture(imageObjUpdated.getLink()); // Save file
+                        savePicture(imageObjUpdated); // Save file
                     }
                 });
     }//getListImageObj
@@ -341,10 +340,10 @@ public class MainActivity extends AppCompatActivity {
     }//start
 
 
-    private void savePicture(String url) {
-        int index = url.lastIndexOf('/');
-        String name = url.substring(index, url.length());
-        Uri downloadUri = Uri.parse(url);
+    private void savePicture(ImageObj imageObj) {
+        int index = imageObj.getLink().lastIndexOf('/');
+        String name = imageObj.getLink().substring(index, imageObj.getLink().length());
+        Uri downloadUri = Uri.parse(imageObj.getLink());
 
         //check the availability of SD
         if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
@@ -375,7 +374,7 @@ public class MainActivity extends AppCompatActivity {
                     .setDestinationInExternalPublicDir(DIR_SD, name);
             enqueue = mgr.enqueue(request);
             listEnqueue.add(enqueue);
-            listUrl.add(url);
+            list.add(imageObj);
 //            }
 
         } catch (IllegalArgumentException e) {
