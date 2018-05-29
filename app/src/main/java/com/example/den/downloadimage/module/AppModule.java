@@ -33,4 +33,4 @@ public class AppModule {
     public ImageObjDao provideUserDao(MyDatabase myDatabase){
         return myDatabase.imageObjDao();
     }
-}
+}//class AppModule

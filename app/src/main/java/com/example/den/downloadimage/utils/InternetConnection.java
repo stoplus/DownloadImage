@@ -15,4 +15,4 @@ public class InternetConnection {
         return ((ConnectivityManager) Objects.requireNonNull(context.getSystemService
                 (Context.CONNECTIVITY_SERVICE))).getActiveNetworkInfo() != null;
     }
-}
+}//class InternetConnection

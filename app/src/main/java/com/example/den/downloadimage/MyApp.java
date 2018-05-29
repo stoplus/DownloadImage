@@ -26,4 +26,4 @@ public class MyApp extends Application {
     public AppComponent appComponent(){
         return appComponent;
     }
-}
+}//class MyApp

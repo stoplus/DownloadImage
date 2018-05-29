@@ -34,4 +34,4 @@ public interface ImageObjDao {
 
     @Delete
     void delete(ImageObj... imageObj);
-}
+}//interface ImageObjDao

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
@@ -9,14 +9,14 @@
         android:id="@+id/uid"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="8dp"
+        android:layout_weight="1"
+        android:gravity="center"
         android:hint="@string/enterLink"
         android:imeOptions="flagNoExtractUi"
         android:inputType="textUri|textWebEditText"
         android:textSize="18sp"
-        android:gravity="center"
-        android:layout_marginLeft="8dp"
-        android:layout_marginRight="8dp"
-        android:layout_weight="1"
         android:textStyle="bold" />
 
     <Button

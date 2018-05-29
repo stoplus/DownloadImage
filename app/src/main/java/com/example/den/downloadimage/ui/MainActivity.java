@@ -10,6 +10,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Parcelable;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.design.widget.AppBarLayout;
@@ -68,12 +69,11 @@ public class MainActivity extends AppCompatActivity {
     private String linkDevice = "";
     private DownloadManager mgr;
     private ImageObj imageObjUpdated;
-    private long enqueue;
+    private int enqueue;
     private View view;
-    private ImageObj[] tempImageNotDownloaded;
     private boolean flagInstanceState;
-    private List<ImageObj> list = new ArrayList<>();
-    private List<Long> listEnqueue = new ArrayList<>();
+    private List<ImageObj> listImageObj = new ArrayList<>();
+    private List<Integer> listEnqueue = new ArrayList<>();
 
 
     @Override
@@ -87,7 +87,8 @@ public class MainActivity extends AppCompatActivity {
 
         if (savedInstanceState != null) {
             flagInstanceState = true;
-            tempImageNotDownloaded = (ImageObj[]) savedInstanceState.getParcelableArray("tempImageNotDownloaded");
+            listImageObj = savedInstanceState.getParcelableArrayList("listImageObj");
+            listEnqueue = savedInstanceState.getIntegerArrayList("listEnqueue");
         }
         //is created after compilation
         MainActivityPermissionsDispatcher.startWithPermissionCheck(MainActivity.this);
@@ -101,26 +102,30 @@ public class MainActivity extends AppCompatActivity {
                 DownloadManager.Query query = new DownloadManager.Query();
 
                 enqueue = listEnqueue.get(0);
-                imageObjUpdated = list.get(0);
+                imageObjUpdated = listImageObj.get(0);
                 query.setFilterById(enqueue);
-                list.remove(0);
+                listImageObj.remove(0);
                 listEnqueue.remove(0);
 
-                if (mgr != null) {
-                    Cursor c = mgr.query(query);
-                    if (c.moveToFirst()) {
-                        CheckDwnloadStatus(c);
-                        int columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                    if (mgr != null) {
+                        Cursor c = mgr.query(query);
+                        if (c.moveToFirst()) {
+                            CheckDwnloadStatus(c);
+                            int columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
 
-                        if (DownloadManager.STATUS_SUCCESSFUL == c.getInt(columnIndex)) {
-                            linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-                            imageObjUpdated.setDownload(true);
-                            imageObjUpdated.setLinkDevice(linkDevice);
-                            updateImageObj(imageObjUpdated);//update
+                            if (DownloadManager.STATUS_PAUSED == c.getInt(columnIndex)) {
+                                listImageObj.add(imageObjUpdated);
+                                listEnqueue.add(enqueue);
+                            }
+                            if (DownloadManager.STATUS_SUCCESSFUL == c.getInt(columnIndex)) {
+                                linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+                                imageObjUpdated.setDownload(true);
+                                imageObjUpdated.setLinkDevice(linkDevice);
+                                updateImageObj(imageObjUpdated);//update
+                            }//if
                         }//if
+                        c.close();
                     }//if
-                    c.close();
-                }//if
             }//if
         }//onReceive
     };
@@ -138,46 +143,46 @@ public class MainActivity extends AppCompatActivity {
                 switch (reason) {
                     case DownloadManager.ERROR_CANNOT_RESUME:
                         failedReason = "ERROR_CANNOT_RESUME";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_DEVICE_NOT_FOUND:
                         failedReason = "ERROR_DEVICE_NOT_FOUND";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_FILE_ALREADY_EXISTS:
                         failedReason = "ERROR_FILE_ALREADY_EXISTS";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_FILE_ERROR:
                         failedReason = "ERROR_FILE_ERROR";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_HTTP_DATA_ERROR:
                         failedReason = "ERROR_HTTP_DATA_ERROR";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_INSUFFICIENT_SPACE:
                         failedReason = "ERROR_INSUFFICIENT_SPACE";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_TOO_MANY_REDIRECTS:
                         failedReason = "ERROR_TOO_MANY_REDIRECTS";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_UNHANDLED_HTTP_CODE:
                         failedReason = "ERROR_UNHANDLED_HTTP_CODE";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                     case DownloadManager.ERROR_UNKNOWN:
                         failedReason = "ERROR_UNKNOWN";
-                        Log.d("ddd", failedReason);
+                        Log.d(getClass().getName(), failedReason);
                         break;
                 }//switch
 
                 deleteImageObj(imageObjUpdated);//delete by error
                 Snackbar.make(view, getResources().getString(R.string.failed)
                         + failedReason, Snackbar.LENGTH_INDEFINITE).show();
-                getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
+                getListNotDownloadedImageObj();//get the listImageObj of NOT downloaded and start the download
 
                 break;
             case DownloadManager.STATUS_PAUSED:
@@ -223,12 +228,12 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onComplete() {//Вставляем новую
-                        Log.d("MainActivityClass", "imageObjDao.insert");
                         if (!InternetConnection.checkConnection(getApplicationContext())) {
-                            Snackbar.make(view, getResources().getString(R.string.no_internet), Snackbar.LENGTH_INDEFINITE).show();
+                            Snackbar.make(view, getResources().getString(R.string.no_internet)
+                                    , Snackbar.LENGTH_INDEFINITE).show();
                         }
-                        getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
-                    }
+                        getListNotDownloadedImageObj();//get the listImageObj of NOT downloaded and start the download
+                    }//onComplete
 
                     @Override
                     public void onError(Throwable e) {
@@ -249,15 +254,14 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onComplete() {
-                        Log.d("MainActivityClass", "imageObjDao.update");
-                        getListDownloadedImageObj();//get the list of downloaded and display them
-                    }
+                        getListDownloadedImageObj();//get the listImageObj of downloaded and display them
+                    }//onComplete
 
                     @Override
                     public void onError(Throwable e) {
                     }
                 });
-    }
+    }//updateImageObj
 
     private void deleteImageObj(final ImageObj imageObj) {
         Completable.fromAction(() -> imageObjDao.delete(imageObj))
@@ -270,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onComplete() {
-                        Log.d("MainActivityClass", "imageObjDao.delete");
+                        Log.d(getClass().getName(), "imageObjDao.delete");
                     }
 
                     @Override
@@ -279,7 +283,7 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
-    //get the list of downloaded
+    //get the listImageObj of downloaded
     public void getListDownloadedImageObj() {
         disposDownloaded = imageObjDao.allDownloaded()
                 .subscribeOn(Schedulers.io())
@@ -290,16 +294,15 @@ public class MainActivity extends AppCompatActivity {
                 });
     }//getListImageObj
 
-    //get the list of NOT downloaded
+    //get the listImageObj of NOT downloaded
     public void getListNotDownloadedImageObj() {
         disposNotDownloaded = imageObjDao.allNotDownloaded()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(listImageObj -> {
+                .subscribe(newListImageObj -> {
                     disposNotDownloaded.dispose();
-                    if (listImageObj.length > 0) {
-                        tempImageNotDownloaded = listImageObj;
-                        imageObjUpdated = listImageObj[listImageObj.length - 1];//create changeable object
+                    if (newListImageObj.length > 0) {
+                        imageObjUpdated = newListImageObj[newListImageObj.length - 1];//create changeable object
                         savePicture(imageObjUpdated); // Save file
                     }
                 });
@@ -328,15 +331,17 @@ public class MainActivity extends AppCompatActivity {
             ImageObj imageObj = new ImageObj(linkText, linkDevice, false);
             insertImageObj(imageObj);
         } else
-            Snackbar.make(view, getResources().getString(R.string.enterUrlString), Snackbar.LENGTH_LONG).show();
+            Snackbar.make(view, getResources().getString(R.string.enterUrlString)
+                    , Snackbar.LENGTH_LONG).show();
     }//addnewLink
 
 
-    @NeedsPermission({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
+    @NeedsPermission({Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
     void start() {
-        getListDownloadedImageObj();//get the list of downloaded and display them
+        getListDownloadedImageObj();//get the listImageObj of downloaded and display them
         if (!flagInstanceState)
-            getListNotDownloadedImageObj();//get the list of NOT downloaded and start the download
+            getListNotDownloadedImageObj();//get the listImageObj of NOT downloaded and start the download
     }//start
 
 
@@ -354,28 +359,12 @@ public class MainActivity extends AppCompatActivity {
 
         try {//Running the download of the file on the specified path
             mgr = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-
-//            if (flagInstanceState) {
-
-//                for (int i = 0; i < tempImageNotDownloaded.length; i++) {
-//
-//                    url = tempImageNotDownloaded[i].getLink();
-//                    index = url.lastIndexOf('/');
-//                    name = url.substring(index, url.length());
-//                    downloadUri = Uri.parse(url);
-//
-//                    DownloadManager.Request request = new DownloadManager.Request(downloadUri)
-//                            .setDestinationInExternalPublicDir(DIR_SD, name);
-//                    enqueue = mgr.enqueue(request);
-//                    flagInstanceState = false;
-//                }
-//            } else {
             DownloadManager.Request request = new DownloadManager.Request(downloadUri)
                     .setDestinationInExternalPublicDir(DIR_SD, name);
-            enqueue = mgr.enqueue(request);
+            enqueue = (int) mgr.enqueue(request);
+
             listEnqueue.add(enqueue);
-            list.add(imageObj);
-//            }
+            listImageObj.add(imageObj);
 
         } catch (IllegalArgumentException e) {
             Snackbar.make(view, getResources().getString(R.string.onlyHTTP_HTTPS_URI), Snackbar.LENGTH_LONG).show();
@@ -386,7 +375,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putParcelableArray("tempImageNotDownloaded", tempImageNotDownloaded);
+        outState.putParcelableArrayList("listImageObj", (ArrayList<? extends Parcelable>) listImageObj);
+        outState.putIntegerArrayList("listEnqueue", (ArrayList<Integer>) listEnqueue);
     }
 
     @Override
@@ -413,17 +403,20 @@ public class MainActivity extends AppCompatActivity {
     }//onRequestPermissionsResult
 
 
-    @OnPermissionDenied({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
+    @OnPermissionDenied({Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
     void permissionsDenied() {
         Intent intent = new Intent();
         intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         Uri uri = Uri.fromParts("package", getPackageName(), null);
         intent.setData(uri);
         startActivityForResult(intent, REQUEST_PERMITIONS);
+        finish();
     }//permissionsDenied
 
 
-    @OnNeverAskAgain({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
+    @OnNeverAskAgain({Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
     void onNeverAskAgain() {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(getResources().getString(R.string.attention))
@@ -446,7 +439,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    @OnShowRationale({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
+    @OnShowRationale({Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.INTERNET})
     void showRationaleForCamera(final PermissionRequest request) {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setMessage(getResources().getString(R.string.need_obtain_permissions))
