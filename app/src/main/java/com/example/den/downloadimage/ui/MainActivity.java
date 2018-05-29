@@ -107,25 +107,27 @@ public class MainActivity extends AppCompatActivity {
                 listImageObj.remove(0);
                 listEnqueue.remove(0);
 
-                    if (mgr != null) {
-                        Cursor c = mgr.query(query);
-                        if (c.moveToFirst()) {
-                            CheckDwnloadStatus(c);
-                            int columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                if (mgr != null) {
+                    Cursor c = mgr.query(query);
+                    if (c.moveToFirst()) {
+                        CheckDwnloadStatus(c);
+                        int columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
 
-                            if (DownloadManager.STATUS_PAUSED == c.getInt(columnIndex)) {
-                                listImageObj.add(imageObjUpdated);
-                                listEnqueue.add(enqueue);
-                            }
-                            if (DownloadManager.STATUS_SUCCESSFUL == c.getInt(columnIndex)) {
-                                linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-                                imageObjUpdated.setDownload(true);
-                                imageObjUpdated.setLinkDevice(linkDevice);
-                                updateImageObj(imageObjUpdated);//update
-                            }//if
-                        }//if
-                        c.close();
+                        if (DownloadManager.STATUS_SUCCESSFUL == c.getInt(columnIndex)) {
+                            linkDevice = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+                            imageObjUpdated.setDownload(true);
+                            imageObjUpdated.setLinkDevice(linkDevice);
+                            updateImageObj(imageObjUpdated);//update
+                        }
+                        if (DownloadManager.STATUS_PAUSED == c.getInt(columnIndex) ||
+                                DownloadManager.STATUS_PENDING == c.getInt(columnIndex) ||
+                                DownloadManager.STATUS_RUNNING == c.getInt(columnIndex)) {
+                            listImageObj.add(imageObjUpdated);
+                            listEnqueue.add(enqueue);
+                        }
                     }//if
+                    c.close();
+                }//if
             }//if
         }//onReceive
     };
